@@ -78,7 +78,7 @@ O faturamento considera apenas pedidos com status `ENTREGUE`. Pedidos cancelados
 | 7 | Quais pagamentos estão atrasados e há quantos dias? | `JOIN` + cálculo de datas |
 | 8 | Quais categorias dão mais faturamento? | `JOIN` + `GROUP BY` |
 | 9 | As vendas deste mês subiram ou caíram em relação ao mês passado? | CTE + `LAG` |
-| 10 | Qual produto vende mais em cada cidade? | CTE + `DENSE_RANK` |
+| 10 | Quais são os 3 produtos que mais vendem em cada cidade? | CTE + `DENSE_RANK` |
 
 ## Exemplos de resultado
 
