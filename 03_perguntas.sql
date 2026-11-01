@@ -141,7 +141,7 @@ ORDER BY mes desc;
 
 -- =====================================================================
 
--- 10. Qual produto vende mais em cada cidade?
+-- 10. Quais são os 3 produtos que mais vendem em cada cidade?
 
 WITH VendasPorCidade AS (
     SELECT 
