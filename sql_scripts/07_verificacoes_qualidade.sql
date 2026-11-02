@@ -85,14 +85,19 @@ WHERE ROUND(cr.valor * 100) <> d.valor_centavos
 
 -- 7. O valor da soma das parcelas do pedido bate com a soma dos itens do pedido?
 
-SELECT p.id_pedido,
-       SUM(cr.valor)                                     AS valor_total_parcelas,
-       SUM(ip.quantidade * ip.preco_unitario)            AS soma_itens
+WITH parcelas AS (
+    SELECT id_pedido, SUM(valor) AS valor_total_parcelas
+    FROM contas_receber GROUP BY id_pedido
+),
+itens AS (
+    SELECT id_pedido, SUM(quantidade * preco_unitario) AS soma_itens
+    FROM itens_pedido GROUP BY id_pedido
+)
+SELECT p.id_pedido, pa.valor_total_parcelas, i.soma_itens
 FROM pedidos p
-JOIN contas_receber cr ON cr.id_pedido = p.id_pedido
-JOIN itens_pedido   ip ON ip.id_pedido = p.id_pedido
-GROUP BY p.id_pedido
-HAVING ROUND(SUM(cr.valor), 2) <> ROUND(SUM(ip.quantidade * ip.preco_unitario), 2);
+JOIN parcelas pa ON pa.id_pedido = p.id_pedido
+JOIN itens    i  ON i.id_pedido  = p.id_pedido
+WHERE ROUND(pa.valor_total_parcelas, 2) <> ROUND(i.soma_itens, 2);
 
 -- ===================================================================
 
