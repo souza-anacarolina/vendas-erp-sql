@@ -13,8 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Mapeia todos os arquivos .sql do diretório local para a pasta de inicialização do Postgres:
-      - ./:/docker-entrypoint-initdb.d/
+      - ./sql_scripts:/docker-entrypoint-initdb.d/
 
 volumes:
   postgres_data:
