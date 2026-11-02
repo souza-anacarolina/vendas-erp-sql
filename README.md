@@ -1,147 +1,132 @@
-# Vendas ERP: perguntas de negócio respondidas com SQL
+# 📊 ERP Vendas & Financeiro — Modelagem Relacional e Análise SQL
 
-Projeto de estudo que simula o banco de dados de uma loja, no estilo de um sistema ERP, e responde com SQL 10 perguntas que um gerente faria no dia a dia.
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B-blue?logo=postgresql)
+![Docker](https://img.shields.io/badge/Docker-Supported-blue?logo=docker)
+![Status](https://img.shields.io/badge/Status-Em%20Evolu%C3%A7%C3%A3o-blue)
 
-> Todos os dados são fictícios e gerados por script. Nada neste repositório vem de uma empresa real.
+Projeto prático desenvolvido para simular um banco de dados relacional completo de um **ERP Integrado (Módulos de Vendas e Financeiro)**, com suporte a **vendas parceladas**, **rateio de centros de custo/contas gerenciais** e **rotinas automatizadas de validação e qualidade de dados (Data Quality)**.
 
-## O que o projeto mostra
+---
 
-- Modelagem de um banco relacional simples, com 5 tabelas
-- Geração de dados de exemplo usando só SQL
-- Consultas com `JOIN`, `GROUP BY`, subconsultas, CTE e funções de janela (`LAG`, `DENSE_RANK`)
-- Cuidado com a regra de negócio: pedidos cancelados não entram no faturamento
+## 📌 1. Visão Geral do Projeto
 
-## Tecnologias
+Em ambientes corporativos reais, os módulos operacionais (Vendas) e financeiros precisam interagir de forma consistente sem duplicação ou contradições de dados. 
 
-- PostgreSQL
-- SQL
+Este projeto recria essa dinâmica modelando:
+1. **Cadastro Único de Pessoas (`pessoas`):** Unificação de clientes, fornecedores e colaboradores.
+2. **Vendas Operacionais (`pedidos` & `itens_pedido`):** Registro de transações comerciais.
+3. **Parcelamento de Vendas (`contas_receber`):** Suporte a vendas à vista e parceladas em até 10 vezes ($1 : N$).
+4. **Módulo Financeiro (`documentos_financeiros` & `rateios`):** Origem dos títulos a receber nascidos das parcelas operacionais, além do controle detalhado de contas a pagar e rateios por centro de custo e projetos.
+5. **Data Quality & Auditoria:** Scripts focados na detecção proposital e automática de inconsistências de dados ( rateios incorretos, títulos pagos sem data de quitação, cadastros ambíguos, etc.).
 
-## Estrutura do repositório
+---
 
+### 📊 Análises de Negócio e KPIs
+O projeto responde a perguntas estratégicas divididas em dois níveis:
+
+1. **Análises Comerciais (`03_perguntas.sql`):**
+   * Evolução do faturamento mensal (considerando apenas pedidos entregues).
+   * Curva ABC / Top 10 produtos e clientes de maior valor.
+   * Alertas de estoque baixo e inatividade de clientes (> 90 dias sem comprar).
+   * Ticket médio por pedido e ranking de produtos mais vendidos por cidade (Window Functions).
+
+2. **Análises Financeiras e Caixa (`06_indicadores_financeiros.sql`):**
+   * Aging de contas a receber parceladas e taxa de inadimplência por mês de vencimento.
+   * Fluxo de caixa realizado vs. previsto (entradas e saídas por semana/mês).
+   * DRE gerencial por centro de custo e projetos.
+
+---
+
+## 📐 2. Modelagem de Dados & Arquitetura
+
+### Relacionamentos Principais
+* **`clientes` $\rightarrow$ `pessoas`**: Relação $1 : 1$.
+* **`pedidos` $\rightarrow$ `contas_receber`**: Relação $1 : N$ (um pedido gera de 1 a $N$ parcelas).
+* **`contas_receber` $\rightarrow$ `documentos_financeiros`**: Relação $1 : 1$ por parcela.
+* **`documentos_financeiros` $\rightarrow$ `rateios`**: Relação $1 : N$ (um título é dividido entre centros de custo/contas gerenciais).
+
+### Diagrama Simplificado do Fluxo
 ```
-.
-├── 01_criar_tabelas.sql   # cria as tabelas
-├── 02_dados_exemplo.sql   # gera os dados fictícios
-├── 03_perguntas.sql       # as 10 consultas
-└── README.md
+[clientes] ──> [pessoas] 
+     │
+     └──> [pedidos] ──> [itens_pedido]
+              │
+              └──> [contas_receber] (1:N Parcelas)
+                        │
+                        └──> [documentos_financeiros] ──> [rateios]
 ```
 
-## Modelo de dados
+---
 
-| Tabela | O que guarda |
-|---|---|
-| `clientes` | Quem compra: nome, cidade, estado e data de cadastro |
-| `produtos` | O que a loja vende: nome, categoria, preço e estoque |
-| `pedidos` | Cada compra feita por um cliente, com data e status (ENTREGUE ou CANCELADO) |
-| `itens_pedido` | Os produtos dentro de cada pedido, com quantidade e preço cobrado |
-| `contas_receber` | O que o cliente deve pagar por pedido, com vencimento e data de pagamento |
+## 📁 3. Estrutura dos Scripts SQL
 
-Relações: um cliente tem vários pedidos, um pedido tem vários itens e cada pedido não cancelado gera uma conta a receber.
+| Arquivo | Descrição |
+| :--- | :--- |
+| **`01_criar_tabelas.sql`** | Estrutura DDL do módulo de Vendas (Clientes, Produtos, Pedidos, Itens e Contas a Receber com parcelamento). |
+| **`02_dados_exemplo.sql`** | Geração de massa de dados fictícios para vendas e parcelas à vista/parceladas em até 10x. |
+| **`03_perguntas.sql`** | Consultas e indicadores comerciais de vendas (Top produtos, ticket médio, faturamento por cidade, etc.). |
+| **`04_modelo_financeiro.sql`** | Estrutura DDL do Financeiro (Pessoas, Documentos, Rateios) e criação das Views Analíticas (`vw_titulos`, `vw_rateio`). |
+| **`05_dados_financeiros.sql`** | Carga de títulos a receber (nascidos das parcelas), títulos a pagar (fornecedores/reembolsos) e inserção proposital de defeitos de qualidade. |
+| **`06_indicadores_financeiros.sql`** | Consultas analíticas para DRE, Aging de Dívidas, Inadimplência, Fluxo de Caixa e Resultado por Projeto. |
+| **`07_verificacoes_qualidade.sql`** | Testes automatizados de Data Quality e integridade relacional. |
 
-## Como rodar
+---
 
-1. Instale o PostgreSQL.
-2. Crie um banco vazio:
+## 🚀 4. Como Executar com Docker
 
-```bash
-createdb vendas_erp
-```
+### Pré-requisitos
+* [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado.
 
-3. Execute os arquivos na ordem:
+### Passo a Passo
 
-```bash
-psql -d vendas_erp -f 01_criar_tabelas.sql
-psql -d vendas_erp -f 02_dados_exemplo.sql
-psql -d vendas_erp -f 03_perguntas.sql
-```
+1. **Clone o repositório:**
+   ```bash
+   git clone https://github.com/souza-anacarolina/vendas-erp-sql.git
+   cd vendas-erp-sql
+   ```
 
-Também funciona no DBeaver ou no pgAdmin: abra cada arquivo e execute como script.
+2. **Suba o container com o PostgreSQL:**
+   ```bash
+   docker-compose up -d
+   ```
 
-Ao final do `02_dados_exemplo.sql`, o script mostra quantas linhas ficaram em cada tabela: 200 clientes, 30 produtos, 1.000 pedidos, cerca de 2.400 itens e 915 contas a receber.
+3. **Acesse o banco de dados via terminal (ou DBeaver/PgAdmin):**
+   ```bash
+   docker exec -it erp_postgres psql -U postgres -d erp_db
+   ```
 
-Rodar o `02_dados_exemplo.sql` de novo apaga e recria os dados, sem duplicar.
+   * **Host:** `localhost`
+   * **Porta:** `5432`
+   * **Usuário:** `postgres`
+   * **Senha:** `postgres`
+   * **Database:** `erp_db`
 
-## Regra de negócio
+---
 
-O faturamento considera apenas pedidos com status `ENTREGUE`. Pedidos cancelados ficam de fora de todas as consultas de vendas.
+## 🔎 5. Qualidade de Dados (Data Quality)
 
-## As 10 perguntas
+O script `07_verificacoes_qualidade.sql` atua como uma suíte de testes de auditoria de dados. Ele foi construído para identificar problemas como:
 
-| # | Pergunta | Técnica |
-|---|---|---|
-| 1 | Quanto a loja vendeu em cada mês? | `GROUP BY` com `to_char` |
-| 2 | Quais são os 10 produtos mais vendidos? | `JOIN` + `ORDER BY` + `LIMIT` |
-| 3 | Quais são os 10 clientes que mais geraram faturamento? | `COUNT(DISTINCT)` + `SUM` |
-| 4 | Quais produtos estão com estoque baixo? | `WHERE` |
-| 5 | Quais clientes não compram há mais de 90 dias? | `LEFT JOIN` + `HAVING` |
-| 6 | Qual o valor médio de cada pedido (ticket médio)? | Subconsulta |
-| 7 | Quais pagamentos estão atrasados e há quantos dias? | `JOIN` + cálculo de datas |
-| 8 | Quais categorias dão mais faturamento? | `JOIN` + `GROUP BY` |
-| 9 | As vendas deste mês subiram ou caíram em relação ao mês passado? | CTE + `LAG` |
-| 10 | Quais são os 3 produtos que mais vendem em cada cidade? | CTE + `DENSE_RANK` |
+* Rateios de custo cujos percentuais não somam 100%.
+* Títulos marcados como `PAGO` mas com `data_pagamento IS NULL`.
+* Pessoas com inconsistências no documento (CPF e CNPJ simultâneos ou ausentes).
+* Descasamento de valores entre o total dos itens de venda e a soma das parcelas geradas.
 
-## Exemplos de resultado
+---
 
-**Pergunta 2: produtos mais vendidos (3 primeiros)**
+## 📈 6. Próximos Passos (Roadmap de Engenharia de Dados)
 
-| Produto | Quantidade vendida |
-|---|---|
-| Fone de Ouvido Bluetooth | 521 |
-| Carregador Portátil 10000mAh | 372 |
-| Mouse Sem Fio | 316 |
+Como evolução deste projeto para o portfólio de Engenharia de Dados, as próximas etapas serão:
 
-**Pergunta 4: estoque baixo**
+- [ ] **Pipeline ETL em Python (`pandas` / `SQLAlchemy`):** Automação do fluxo de extração e transformação fora da camada de banco de dados.
+- [ ] **Construção de um Data Warehouse (Star Schema):** Modelagem dimensional (`fato_vendas`, `fato_financeiro`, `dim_cliente`, `dim_tempo`).
+- [ ] **Orquestração de Dados:** Configuração de DAGs simples para carga diária simulada via **Apache Airflow**.
+- [ ] **Dashboard de Business Intelligence:** Conexão do modelo analítico ao **Power BI / Looker Studio** para exibição de indicadores operacionais e financeiros.
 
-| Produto | Quantidade em estoque |
-|---|---|
-| Halteres 2kg (par) | 4 |
-| Webcam Full HD | 5 |
-| Mochila Escolar | 6 |
-| Carregador Portátil 10000mAh | 8 |
-| Liquidificador | 9 |
+---
 
-**Pergunta 6: ticket médio**
+## 👩‍💻 Autora
 
-| Ticket médio |
-|---|
-| R$ 635,45 |
-
-**Pergunta 8: faturamento por categoria**
-
-| Categoria | Faturamento |
-|---|---|
-| Eletrônicos | R$ 350.956,90 |
-| Casa | R$ 113.134,80 |
-| Esporte | R$ 79.263,20 |
-| Papelaria | R$ 38.080,70 |
-
-
-## Prints dos resultados
-
-**Pergunta 3: clientes que mais geraram faturamento**
-
-<img width="685" height="300" alt="image" src="https://github.com/user-attachments/assets/ebcde6a7-c312-47a2-9861-32368ca13dd9" />
-
-
-**Pergunta 7: pagamentos atrasados**
-
-<img width="667" height="315" alt="image" src="https://github.com/user-attachments/assets/b51faeb0-d145-496c-af7b-0e644f10287a" />
-
-## Decisões de modelagem e cuidados com os dados
-
-- **Regra de faturamento única:** só pedidos `ENTREGUE` entram nas consultas de venda. Aplicar a mesma regra em todas evita que totais de consultas diferentes deixem de bater.
-- **Contagem de pedidos com `COUNT(DISTINCT)`:** o pedido aparece uma vez por item, então a contagem simples infla o resultado (um cliente com 9 pedidos aparecia com 26).
-- **Agrupamento por `id`, não por nome:** nomes se repetem entre clientes diferentes e juntariam pessoas distintas numa linha só.
-- **`LEFT JOIN` na análise de inatividade:** com `INNER JOIN`, os clientes que nunca compraram desapareceriam do resultado.
-- **Preço no item do pedido:** `itens_pedido` guarda o preço cobrado no dia, então mudar o preço do produto depois não altera o histórico de vendas.
-
-## Próximos passos
-
-- [ ] Painel no Grafana conectado a este banco (vendas, estoque e atrasos)
-- [ ] Carga automática dos dados com Python
-- [ ] Versão em Docker, para rodar tudo com um comando
-
-## Autora
-
-Ana Carolina, analista de suporte ERP em transição para a área de dados.
-[LinkedIn](https://www.linkedin.com/in/souza-anacarolina/) · [GitHub](https://github.com/souza-anacarolina)
+**Ana Carolina de Souza**  
+*Analista de Suporte em transição para a área de Engenharia de Dados.*  
+[LinkedIn](https://linkedin.com/in/souza-anacarolina/) | [GitHub](https://github.com/souza-anacarolina)

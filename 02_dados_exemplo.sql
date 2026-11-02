@@ -91,28 +91,30 @@ FROM (
 JOIN produtos pr ON pr.id_produto = s.id_produto;
 
 
-INSERT INTO contas_receber (id_pedido, valor, data_vencimento, data_pagamento)
-SELECT
-    t.id_pedido,
-    t.total,
-    t.data_pedido + 30,
-    CASE
-        WHEN t.sorteio < 0.75 AND t.data_pedido + t.dias_ate_pagar <= CURRENT_DATE
-        THEN t.data_pedido + t.dias_ate_pagar
+INSERT INTO contas_receber (id_pedido, parcela, total_parcelas, valor, data_vencimento, data_pagamento)
+SELECT 
+    p.id_pedido,
+    g.n AS parcela,
+    sub.qtd_parcelas AS total_parcelas,
+    ROUND(sub.total / sub.qtd_parcelas, 2) AS valor,
+    p.data_pedido + (g.n * 30) AS data_vencimento,
+    CASE 
+        WHEN g.n = 1 AND random() < 0.75 THEN p.data_pedido + 15
         ELSE NULL
-    END
+    END AS data_pagamento
 FROM (
-    SELECT
-        p.id_pedido,
-        p.data_pedido,
+    SELECT 
+        pd.id_pedido,
+        pd.data_pedido,
         SUM(i.quantidade * i.preco_unitario) AS total,
-        random()                             AS sorteio,
-        10 + floor(random() * 35)::int       AS dias_ate_pagar
-    FROM pedidos p
-    JOIN itens_pedido i ON i.id_pedido = p.id_pedido
-    WHERE p.status <> 'CANCELADO'
-    GROUP BY p.id_pedido, p.data_pedido
-) AS t;
+        CASE WHEN random() < 0.4 THEN 10 ELSE 1 END AS qtd_parcelas
+    FROM pedidos pd
+    JOIN itens_pedido i ON i.id_pedido = pd.id_pedido
+    WHERE pd.status <> 'CANCELADO'
+    GROUP BY pd.id_pedido, pd.data_pedido
+) sub
+JOIN pedidos p ON p.id_pedido = sub.id_pedido
+CROSS JOIN LATERAL generate_series(1, sub.qtd_parcelas) AS g(n);
 
 
 SELECT 'clientes'       AS tabela, COUNT(*) AS linhas FROM clientes

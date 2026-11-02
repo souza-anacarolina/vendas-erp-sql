@@ -50,6 +50,8 @@ CREATE TABLE itens_pedido (
 CREATE TABLE contas_receber (
     id_conta        SERIAL PRIMARY KEY,
     id_pedido       INT           NOT NULL REFERENCES pedidos (id_pedido),
+    parcela         INT           NOT NULL DEFAULT 1,
+    total_parcelas  INT           NOT NULL DEFAULT 1,
     valor           NUMERIC(12,2) NOT NULL,
     data_vencimento DATE          NOT NULL,
     data_pagamento  DATE                   
