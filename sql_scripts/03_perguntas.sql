@@ -84,19 +84,17 @@ from (
 
 -- 7. Quais pagamentos estão atrasados e há quantos dias?
 
-SELECT 
-    cr.id_conta,
-    cr.id_pedido,
-    cr.parcela || '/' || cr.total_parcelas AS parcela,
-    c.nome AS cliente,
-    cr.valor,
-    CURRENT_DATE - cr.data_vencimento AS dias_de_atraso
-FROM contas_receber cr 
-INNER JOIN pedidos p ON p.id_pedido = cr.id_pedido 
-INNER JOIN clientes c ON c.id_cliente = p.id_cliente 
-WHERE cr.data_pagamento IS NULL
-  AND cr.data_vencimento < CURRENT_DATE 
-ORDER BY dias_de_atraso DESC;
+select 
+cr.id_conta,
+c.nome as cliente,
+cr.valor,
+current_date - cr.data_vencimento as dias_de_atraso
+from contas_receber cr 
+inner join pedidos p on p.id_pedido = cr.id_pedido 
+inner join clientes c on c.id_cliente = p.id_cliente 
+where cr.data_pagamento is null
+and cr.data_vencimento < current_date 
+order by dias_de_atraso desc;
 
 -- ======================================================================
 
@@ -137,13 +135,15 @@ SELECT
     total_vendido,
     total_mes_passado,
     (total_vendido > total_mes_passado) AS vendeu_mais_que_mes_passado,
-    (total_vendido - total_mes_passado) AS diferenca
+    (total_vendido - total_mes_passado) AS diferenca,
+    (mes = DATE_TRUNC('month', CURRENT_DATE)) AS mes_incompleto  -- o mês atual ainda não terminou
 FROM comparativo
 ORDER BY mes desc;
 
 -- =====================================================================
 
--- 10. Quais são os 3 produtos que mais vendem em cada cidade?
+-- 10. Quais são os 3 produtos mais vendidos em cada cidade?
+--     (com DENSE_RANK, produtos empatados na mesma posição aparecem juntos)
 
 WITH VendasPorCidade AS (
     SELECT 

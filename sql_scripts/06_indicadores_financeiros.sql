@@ -7,11 +7,11 @@
 -- valores em reais.
 -- Regras: títulos CANCELADOS ficam fora dos indicadores.
 -- =====================================================
-
+ 
 -- ##################  CONTAS A RECEBER  ##################
-
+ 
 -- 1. Quanto temos a receber em aberto hoje, e quanto disso já venceu?
-
+ 
 SELECT
     COUNT(*)                                                   AS qtd_titulos,
     SUM(valor)                                                 AS total_em_aberto,
@@ -20,11 +20,11 @@ SELECT
 FROM vw_titulos
 WHERE natureza = 'RECEBER'
   AND situacao = 'ABERTO';
-
+ 
 -- ===================================================================
-
+ 
 -- 2. Aging (idade da dívida): como o valor em aberto se distribui por faixa de atraso?
-
+ 
 SELECT
     CASE
         WHEN data_vencimento >= CURRENT_DATE            THEN '0. A vencer'
@@ -41,12 +41,12 @@ WHERE natureza = 'RECEBER'
   AND situacao = 'ABERTO'
 GROUP BY 1
 ORDER BY 1;
-
+ 
 -- ===================================================================
-
+ 
 -- 3. Qual é a taxa de inadimplência?
 --    (valor vencido e não pago ÷ valor total que já venceu)
-
+ 
 SELECT
     SUM(valor) FILTER (WHERE situacao = 'ABERTO')              AS vencido_em_aberto,
     SUM(valor)                                                 AS total_que_ja_venceu,
@@ -56,13 +56,13 @@ FROM vw_titulos
 WHERE natureza = 'RECEBER'
   AND situacao <> 'CANCELADO'
   AND data_vencimento < CURRENT_DATE;
-
+ 
 -- ===================================================================
-
+ 
 -- 4. A inadimplência está melhorando ou piorando? (por mês de vencimento)
 --    Atenção: os meses mais recentes tendem a parecer piores, porque
 --    muitos clientes ainda vão pagar com atraso.
-
+ 
 SELECT
     to_char(data_vencimento, 'YYYY-MM')                        AS mes_vencimento,
     SUM(valor)                                                 AS total_vencido,
@@ -75,11 +75,11 @@ WHERE natureza = 'RECEBER'
   AND data_vencimento < CURRENT_DATE
 GROUP BY 1
 ORDER BY 1;
-
+ 
 -- ===================================================================
-
+ 
 -- 5. Quem são os 10 maiores devedores vencidos e quanto da dívida eles concentram?
-
+ 
 WITH devedores AS (
     SELECT
         id_pessoa,
@@ -99,16 +99,17 @@ SELECT
     valor_vencido,
     maior_atraso_dias,
     ROUND(100.0 * valor_vencido / SUM(valor_vencido) OVER (), 1)                         AS pct_do_vencido,
-    ROUND(100.0 * SUM(valor_vencido) OVER (ORDER BY valor_vencido DESC)
+    ROUND(100.0 * SUM(valor_vencido) OVER (ORDER BY valor_vencido DESC
+                             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
           / SUM(valor_vencido) OVER (), 1)                                               AS pct_acumulado
 FROM devedores
 ORDER BY valor_vencido DESC
 LIMIT 10;
-
+ 
 -- ===================================================================
-
+ 
 -- 6. Quanto foi faturado e quanto foi recebido em cada mês?
-
+ 
 WITH emitido AS (
     SELECT date_trunc('month', data_emissao) AS mes, SUM(valor) AS valor_emitido
     FROM vw_titulos
@@ -128,11 +129,11 @@ SELECT
 FROM emitido e
 FULL JOIN recebido r ON r.mes = e.mes
 ORDER BY 1;
-
+ 
 -- ##################  PRAZOS (RECEBER E PAGAR)  ##################
-
+ 
 -- 7. Qual o prazo médio de recebimento e de pagamento? Quanto é pago com atraso?
-
+ 
 SELECT
     natureza,
     COUNT(*)                                                           AS titulos_pagos,
@@ -146,11 +147,11 @@ WHERE situacao = 'PAGO'
   AND data_pagamento IS NOT NULL
 GROUP BY natureza
 ORDER BY natureza;
-
+ 
 -- ##################  CONTAS A PAGAR  ##################
-
+ 
 -- 8. Quanto vence a pagar nas próximas semanas (30 dias)?
-
+ 
 SELECT
     date_trunc('week', data_vencimento)::date AS semana_inicio,
     COUNT(*)                                  AS qtd_titulos,
@@ -161,11 +162,11 @@ WHERE natureza = 'PAGAR'
   AND data_vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + 30
 GROUP BY 1
 ORDER BY 1;
-
+ 
 -- ===================================================================
-
+ 
 -- 9. Quais são os 10 fornecedores para quem mais pagamos?
-
+ 
 SELECT
     pessoa                                                     AS fornecedor,
     COUNT(*)                                                   AS qtd_titulos,
@@ -178,11 +179,11 @@ WHERE natureza = 'PAGAR'
 GROUP BY id_pessoa, pessoa
 ORDER BY valor_total DESC
 LIMIT 10;
-
+ 
 -- ===================================================================
-
+ 
 -- 10. Quanto cada centro de custo gastou? (valor dividido conforme o rateio)
-
+ 
 SELECT
     centro_custo,
     SUM(valor_rateado)                                         AS despesa,
@@ -192,11 +193,11 @@ WHERE natureza = 'PAGAR'
   AND situacao <> 'CANCELADO'
 GROUP BY centro_custo
 ORDER BY despesa DESC;
-
+ 
 -- ===================================================================
-
+ 
 -- 11. Em quais tipos de despesa o dinheiro está indo?
-
+ 
 SELECT
     grupo_conta,
     conta_gerencial,
@@ -206,11 +207,11 @@ WHERE natureza = 'PAGAR'
   AND situacao <> 'CANCELADO'
 GROUP BY grupo_conta, conta_gerencial
 ORDER BY grupo_conta, despesa DESC;
-
+ 
 -- ##################  CAIXA  ##################
-
+ 
 -- 12. Como foi o fluxo de caixa de cada mês e qual o saldo acumulado?
-
+ 
 WITH movimento AS (
     SELECT
         date_trunc('month', data_pagamento)::date AS mes,
@@ -229,11 +230,11 @@ SELECT
     SUM(entradas - saidas) OVER (ORDER BY mes)   AS saldo_acumulado
 FROM movimento
 ORDER BY mes;
-
+ 
 -- ===================================================================
-
+ 
 -- 13. Qual o fluxo previsto para as próximas 8 semanas (a receber menos a pagar)?
-
+ 
 SELECT
     date_trunc('week', data_vencimento)::date                                AS semana_inicio,
     COALESCE(SUM(valor) FILTER (WHERE natureza = 'RECEBER'), 0)              AS a_receber,
@@ -245,11 +246,11 @@ WHERE situacao = 'ABERTO'
   AND data_vencimento BETWEEN CURRENT_DATE AND CURRENT_DATE + 56
 GROUP BY 1
 ORDER BY 1;
-
+ 
 -- ===================================================================
-
+ 
 -- 14. Qual o resultado (receitas menos despesas) de cada projeto?
-
+ 
 SELECT
     COALESCE(projeto, '(sem projeto)')                                       AS projeto,
     COALESCE(SUM(valor_rateado) FILTER (WHERE natureza = 'RECEBER'), 0)      AS receitas,
@@ -260,12 +261,12 @@ FROM vw_rateio
 WHERE situacao <> 'CANCELADO'
 GROUP BY 1
 ORDER BY resultado DESC;
-
+ 
 -- ##################  VENDAS x FINANCEIRO  ##################
 -- (usam o vínculo entre o título financeiro e o pedido de venda)
-
+ 
 -- 15. Qual a inadimplência por cidade do cliente?
-
+ 
 SELECT
     c.cidade,
     COUNT(*)                                                   AS titulos_vencidos,
@@ -281,11 +282,11 @@ WHERE t.natureza = 'RECEBER'
   AND t.data_vencimento < CURRENT_DATE
 GROUP BY c.cidade
 ORDER BY pct_inadimplencia DESC;
-
+ 
 -- ===================================================================
-
+ 
 -- 16. Quais categorias de produto estão nos pedidos que ficaram em aberto (vencidos)?
-
+ 
 SELECT
     pr.categoria,
     COUNT(DISTINCT t.id_pedido)                                AS pedidos_vencidos_em_aberto,

@@ -3,15 +3,15 @@
 -- Arquivo 2: gera dados fictícios 
 -- Rode DEPOIS do 01_criar_tabelas.sql
 -- =====================================================
-
-
+ 
+ 
 SELECT setseed(0.42);
-
-
+ 
+ 
 TRUNCATE contas_receber, itens_pedido, pedidos, produtos, clientes
 RESTART IDENTITY CASCADE;
-
-
+ 
+ 
 INSERT INTO clientes (nome, cidade, estado, data_cadastro)
 SELECT
     (ARRAY['Ana','Bruno','Carla','Diego','Elisa','Fábio','Gabriela','Hugo','Isabela','João',
@@ -28,8 +28,8 @@ FROM (
            1 + floor(random() * 8)::int  AS c
     FROM generate_series(1, 200)
 ) AS sorteio;
-
-
+ 
+ 
 INSERT INTO produtos (nome, categoria, preco, estoque) VALUES
 ('Fone de Ouvido Bluetooth', 'Eletrônicos', 159.90, 45),
 ('Carregador Portátil 10000mAh', 'Eletrônicos', 119.90, 8),
@@ -61,16 +61,16 @@ INSERT INTO produtos (nome, categoria, preco, estoque) VALUES
 ('Mochila de Hidratação', 'Esporte', 149.90, 12),
 ('Munhequeira (par)', 'Esporte', 19.90, 95),
 ('Bolsa Térmica', 'Esporte', 89.90, 22);
-
-
+ 
+ 
 INSERT INTO pedidos (id_cliente, data_pedido, status)
 SELECT
     1 + floor(random() * 200)::int,
     CURRENT_DATE - floor(random() * 365)::int,
     CASE WHEN random() < 0.08 THEN 'CANCELADO' ELSE 'ENTREGUE' END
 FROM generate_series(1, 1000);
-
-
+ 
+ 
 INSERT INTO itens_pedido (id_pedido, id_produto, quantidade, preco_unitario)
 SELECT
     s.id_pedido,
@@ -89,34 +89,58 @@ FROM (
     WHERE g <= q.qtd_itens
 ) AS s
 JOIN produtos pr ON pr.id_produto = s.id_produto;
-
-
+ 
+ 
+-- Contas a receber: cada pedido não cancelado gera 1 parcela (60%) ou 10 parcelas (40%).
+-- Pagamento (realista, parcela por parcela):
+--   * ~90% das parcelas são pagas; ~10% nunca são pagas (inadimplência de verdade);
+--   * 75% pagam em dia ou até 5 dias antes do vencimento; 25% pagam com 1 a 20 dias de atraso;
+--   * só existe data de pagamento se ela já aconteceu (nunca fica no futuro).
+WITH parcelas AS MATERIALIZED (
+    SELECT
+        p.id_pedido,
+        g.n                                    AS parcela,
+        sub.qtd_parcelas                       AS total_parcelas,
+        ROUND(sub.total / sub.qtd_parcelas, 2) AS valor,
+        p.data_pedido + (g.n * 30)             AS data_vencimento,
+        random()                               AS r_paga,
+        random()                               AS r_atraso,
+        floor(random() * 6)::int               AS dias_adiantado,
+        1 + floor(random() * 20)::int          AS dias_atraso
+    FROM (
+        SELECT
+            pd.id_pedido,
+            pd.data_pedido,
+            SUM(i.quantidade * i.preco_unitario) AS total,
+            CASE WHEN random() < 0.4 THEN 10 ELSE 1 END AS qtd_parcelas
+        FROM pedidos pd
+        JOIN itens_pedido i ON i.id_pedido = pd.id_pedido
+        WHERE pd.status <> 'CANCELADO'
+        GROUP BY pd.id_pedido, pd.data_pedido
+    ) sub
+    JOIN pedidos p ON p.id_pedido = sub.id_pedido
+    CROSS JOIN LATERAL generate_series(1, sub.qtd_parcelas) AS g(n)
+),
+calculo AS (
+    SELECT pa.*,
+           pa.data_vencimento
+             + CASE WHEN pa.r_atraso < 0.75 THEN -pa.dias_adiantado
+                    ELSE pa.dias_atraso END AS data_pgto_prevista
+    FROM parcelas pa
+)
 INSERT INTO contas_receber (id_pedido, parcela, total_parcelas, valor, data_vencimento, data_pagamento)
-SELECT 
-    p.id_pedido,
-    g.n AS parcela,
-    sub.qtd_parcelas AS total_parcelas,
-    ROUND(sub.total / sub.qtd_parcelas, 2) AS valor,
-    p.data_pedido + (g.n * 30) AS data_vencimento,
-    CASE 
-        WHEN g.n = 1 AND random() < 0.75 THEN p.data_pedido + 15
-        ELSE NULL
-    END AS data_pagamento
-FROM (
-    SELECT 
-        pd.id_pedido,
-        pd.data_pedido,
-        SUM(i.quantidade * i.preco_unitario) AS total,
-        CASE WHEN random() < 0.4 THEN 10 ELSE 1 END AS qtd_parcelas
-    FROM pedidos pd
-    JOIN itens_pedido i ON i.id_pedido = pd.id_pedido
-    WHERE pd.status <> 'CANCELADO'
-    GROUP BY pd.id_pedido, pd.data_pedido
-) sub
-JOIN pedidos p ON p.id_pedido = sub.id_pedido
-CROSS JOIN LATERAL generate_series(1, sub.qtd_parcelas) AS g(n);
-
-
+SELECT
+    id_pedido,
+    parcela,
+    total_parcelas,
+    valor,
+    data_vencimento,
+    CASE WHEN r_paga < 0.90 AND data_pgto_prevista <= CURRENT_DATE
+         THEN data_pgto_prevista END
+FROM calculo
+ORDER BY id_pedido, parcela;
+ 
+ 
 SELECT 'clientes'       AS tabela, COUNT(*) AS linhas FROM clientes
 UNION ALL SELECT 'produtos',       COUNT(*) FROM produtos
 UNION ALL SELECT 'pedidos',        COUNT(*) FROM pedidos
