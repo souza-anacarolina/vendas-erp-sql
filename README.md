@@ -43,6 +43,10 @@ O projeto responde a perguntas estratégicas divididas em dois níveis:
 ---
  
 ## 📐 2. Modelagem de Dados & Arquitetura
+
+### Diagrama Entidade-Relacionamento
+ 
+![Diagrama ER](docs/img/diagrama-er.png)
  
 ### Relacionamentos Principais
 * **`clientes` $\rightarrow$ `pessoas`**: cada cliente aponta para uma pessoa do cadastro único (nos dados de exemplo, $1 : 1$).
