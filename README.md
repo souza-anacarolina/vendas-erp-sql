@@ -185,7 +185,7 @@ O script `07_verificacoes_qualidade.sql` atua como uma suíte de testes de audit
 * Pedidos sem título financeiro, títulos divergentes da conta a receber de origem e clientes sem cadastro de pessoa.
 * Títulos pagos com data de pagamento no futuro.
 * Mapa de relacionamentos entre as tabelas e tabelas sem nenhuma ligação.
-Os defeitos do primeiro grupo (rateio, pago sem data, CPF/CNPJ) são **inseridos de propósito** pelo `05` para que o script de auditoria tenha o que encontrar: 12 rateios, 6 títulos pagos sem data, 3 pessoas sem documento e 2 com CPF e CNPJ. As verificações de ligação entre vendas e financeiro **devem vir vazias**. O resumo final (item 12 do script) mostra a contagem de cada tipo.
+Os defeitos de rateio, título pago sem data, documento de pessoa e pagamento com data futura são inseridos de propósito pelo 05: 12 rateios, 6 títulos pagos sem data, 3 pessoas sem documento, 2 com CPF e CNPJ e 28 títulos com data de pagamento no futuro. As verificações de ligação entre vendas e financeiro **devem vir vazias**. O resumo final (item 12 do script) mostra a contagem de cada tipo.
  
 ---
  
