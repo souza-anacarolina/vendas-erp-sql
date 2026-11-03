@@ -65,6 +65,34 @@ O projeto responde a perguntas estratégicas divididas em dois níveis:
 ```
  
 ---
+
+### 🧠 Decisões de Modelagem
+ 
+**1. Cadastro único de pessoas (`pessoas`)**
+Cliente, fornecedor e colaborador são papéis, não entidades diferentes: a mesma pessoa pode ser cliente e fornecedora. Concentrar nome, CPF/CNPJ e dados cadastrais em uma única tabela evita cadastros duplicados e permite auditar o documento em um só lugar.
+ 
+**2. Parcela de venda e título financeiro são coisas diferentes**
+`contas_receber` pertence ao módulo de Vendas (como o pedido foi parcelado). `documentos_financeiros` pertence ao Financeiro (o título que a empresa controla). Cada parcela gera exatamente um título, vínculo guardado em `id_conta_receber` e garantido por **índice único**. Esse vínculo é opcional: títulos a pagar (fornecedores, reembolsos) não nascem de uma parcela de venda.
+ 
+**3. Rateio em tabela própria (`rateios`)**
+Uma despesa pode ser dividida entre vários centros de custo, contas gerenciais e projetos. Guardar isso em uma tabela $1 : N$, e não como colunas no título, permite qualquer número de divisões. O custo dessa flexibilidade é que os percentuais de um mesmo título precisam somar 100%, e por isso essa regra virou uma verificação de qualidade.
+ 
+**4. Só pedidos `ENTREGUE` entram no faturamento**
+Pedido criado ou cancelado não é receita. Aplicar esse filtro de forma consistente em todas as consultas evita inflar os indicadores.
+ 
+**5. Cuidado com a multiplicação de linhas nos JOINs**
+Ao juntar pedidos com itens e parcelas, o mesmo pedido aparece várias vezes. Contar com `COUNT(*)` infla o resultado, por isso as consultas usam `COUNT(DISTINCT ...)` ou agregam antes de juntar.
+ 
+**6. Views para encapsular os joins (`vw_titulos`, `vw_rateio`)**
+As consultas de indicadores reaproveitam os mesmos cruzamentos. Colocá-los em views deixa as análises mais curtas e garante que todas usem a mesma regra.
+ 
+**7. Defeitos inseridos de propósito**
+Um teste de qualidade que nunca encontra nada não prova que funciona. Por isso o script `05` insere erros conhecidos e o `07` precisa encontrá-los. Já as verificações de ligação entre vendas e financeiro devem vir **vazias**.
+ 
+**8. Datas relativas a `CURRENT_DATE` e semente fixa**
+A semente (`setseed`) torna a massa de dados reproduzível, e as datas relativas a hoje mantêm atraso, aging e fluxo previsto sempre atuais. Em troca, os resultados dessas consultas mudam de um dia para o outro.
+ 
+---
  
 ## 📁 3. Estrutura do Repositório
  
@@ -72,6 +100,8 @@ O projeto responde a perguntas estratégicas divididas em dois níveis:
 .
 ├── README.md
 ├── docker-compose.yml
+├── docs
+│   └── img
 └── sql_scripts
     ├── 01_criar_tabelas.sql
     ├── 02_dados_exemplo.sql
@@ -192,8 +222,36 @@ O script `07_verificacoes_qualidade.sql` atua como uma suíte de testes de audit
 Os defeitos de rateio, título pago sem data, documento de pessoa e pagamento com data futura são inseridos de propósito pelo 05: 12 rateios, 6 títulos pagos sem data, 3 pessoas sem documento, 2 com CPF e CNPJ e 28 títulos com data de pagamento no futuro. As verificações de ligação entre vendas e financeiro **devem vir vazias**. O resumo final (item 12 do script) mostra a contagem de cada tipo.
  
 ---
+
+## 🖼️ 6. Resultados de Exemplo
  
-## 📈 6. Próximos Passos (Roadmap de Engenharia de Dados)
+> Capturas de uma execução local. Como as datas partem de `CURRENT_DATE`, os valores de atraso, aging e fluxo de caixa mudam conforme o dia. Os dados são fictícios e não representam o resultado de uma empresa real (por exemplo, o saldo acumulado negativo do fluxo de caixa é apenas consequência da geração aleatória).
+ 
+### Auditoria de qualidade (`07_verificacoes_qualidade.sql`)
+ 
+Resumo final com a contagem de problemas por tipo. Os defeitos de rateio, título pago sem data, documento de pessoa e pagamento com data futura são inseridos de propósito pelo script `05`; as verificações de ligação entre módulos vêm zeradas.
+ 
+![Resumo de qualidade](docs/img/qualidade-resumo.png)
+ 
+### View analítica de títulos (`vw_titulos`)
+ 
+![vw_titulos](docs/img/vw-titulos.png)
+ 
+### Aging por faixa de atraso (`06_indicadores_financeiros.sql`)
+ 
+![Aging](docs/img/aging.png)
+ 
+### Inadimplência por mês de vencimento
+ 
+![Inadimplência por mês](docs/img/inadimplencia-mes.png)
+ 
+### Fluxo de caixa realizado, com saldo acumulado
+ 
+![Fluxo de caixa](docs/img/fluxo-caixa.png)
+ 
+---
+
+## 📈 7. Próximos Passos (Roadmap de Engenharia de Dados)
  
 Como evolução deste projeto para o portfólio de Engenharia de Dados, as próximas etapas serão:
  
